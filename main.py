@@ -12,6 +12,16 @@ import openai  # Import OpenAI library for ChatGPT integration
 
 # Initialize FastAPI app
 app = FastAPI()
+from fastapi.middleware.cors import CORSMiddleware
+
+# Add this to your FastAPI app setup
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development. Restrict in production.
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Global variables to hold the models and BERT components
 demand_model = None
