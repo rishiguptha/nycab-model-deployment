@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+google-cloud-storage
+numpy
+scikit-learn
+joblib
