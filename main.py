@@ -1,10 +1,11 @@
+import os
+import json
 import joblib
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
-import json
-import os
+from google.oauth2 import service_account  # Import the missing module
 
 app = FastAPI()
 
@@ -21,7 +22,10 @@ def load_model_from_gcs(bucket_name: str, model_path: str):
     """
     Load a model file from Google Cloud Storage.
     """
-    # Write the service account JSON from Render's environment variable
+    if "GOOGLE_APPLICATION_CREDENTIALS_JSON" not in os.environ:
+        raise RuntimeError("GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable is not set.")
+
+    # Load credentials from the environment variable
     service_account_info = json.loads(os.environ["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
     credentials = service_account.Credentials.from_service_account_info(service_account_info)
 
@@ -58,4 +62,3 @@ async def predict(request: PredictionRequest):
         raise HTTPException(status_code=400, detail="Invalid model type. Use 'demand' or 'duration'.")
 
     return {"prediction": prediction.tolist()}
-
