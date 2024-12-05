@@ -2,16 +2,20 @@ import os
 import json
 import joblib
 import numpy as np
+import torch
+from transformers import DistilBertTokenizer, DistilBertModel
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
-from google.oauth2 import service_account  # Import the missing module
+from google.oauth2 import service_account  # Import the service account module
 
 app = FastAPI()
 
-# Global variables to hold the models
+# Global variables to hold the models and BERT components
 demand_model = None
 duration_model = None
+tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+bert_model = DistilBertModel.from_pretrained('distilbert-base-uncased')
 
 # Define the structure of the request body
 class PredictionRequest(BaseModel):
@@ -36,24 +40,6 @@ def load_model_from_gcs(bucket_name: str, model_path: str):
     blob.download_to_filename(local_model_path)
     return joblib.load(local_model_path)
 
-@app.on_event("startup")
-async def load_models():
-    """
-    Load the models into memory during startup.
-    """
-    global demand_model, duration_model
-    bucket_name = "nycab-bucket"
-    demand_model = load_model_from_gcs(bucket_name, "models/lgb_regressor_demand.pkl")
-    duration_model = load_model_from_gcs(bucket_name, "models/lgb_regressor_duration.pkl")
-
-@app.post("/predict")
-from transformers import DistilBertTokenizer, DistilBertModel
-import torch
-
-# Initialize the BERT tokenizer and model (must match what you used during training)
-tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
-bert_model = DistilBertModel.from_pretrained('distilbert-base-uncased')
-
 def preprocess_with_bert(input_text):
     """
     Preprocess input text with BERT to generate features.
@@ -69,6 +55,17 @@ def preprocess_with_bert(input_text):
         features = outputs.last_hidden_state[:, 0, :]  # Take the [CLS] token output
     return features.numpy()
 
+@app.on_event("startup")
+async def load_models():
+    """
+    Load the models into memory during startup.
+    """
+    global demand_model, duration_model
+    bucket_name = "nycab-bucket"
+    demand_model = load_model_from_gcs(bucket_name, "models/lgb_regressor_demand.pkl")
+    duration_model = load_model_from_gcs(bucket_name, "models/lgb_regressor_duration.pkl")
+
+@app.post("/predict")
 async def predict(request: PredictionRequest):
     """
     Endpoint to handle prediction requests.
