@@ -123,9 +123,12 @@ async def call_perplexity_api(prediction, model_type):
 
     if response.status_code == 200:
         result = response.json()
-        return result.get("messages", [{}])[0].get("content", "").strip()
+        content = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+        logging.debug(f"Extracted Content: {content}")
+        return content
     else:
         raise HTTPException(status_code=500, detail=f"Perplexity API error: {response.text}")
+
 
 @app.on_event("startup")
 async def load_models():
@@ -170,7 +173,6 @@ async def predict(request: PredictionRequest):
 
         # Convert prediction to natural language using Perplexity
         natural_language_response = await call_perplexity_api(prediction, model_type)
-
         logging.debug(f"Natural Language Response: {natural_language_response}")
 
         return {"prediction": natural_language_response}
