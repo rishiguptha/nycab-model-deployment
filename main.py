@@ -60,10 +60,20 @@ def preprocess_with_bert(input_text):
         features = outputs.last_hidden_state[:, 0, :]  # Take the [CLS] token output
     return features.numpy()
 
-async def call_chatgpt_api(prediction, model_type):
+import requests
+from fastapi import HTTPException
+
+async def call_perplexity_api(prediction, model_type):
     """
-    Use ChatGPT (gpt-4 or gpt-3.5-turbo) to convert the prediction into a natural language statement.
+    Use Perplexity API to convert the prediction into a natural language statement.
     """
+    url = "https://api.perplexity.ai/chat/completions"
+    token = os.getenv("PERPLEXITY_API_KEY")  # Store your API token in an environment variable
+
+    if not token:
+        raise HTTPException(status_code=500, detail="Perplexity API token is not set.")
+
+    # Define the prompt for Perplexity
     prompt = f"""
     Convert the following prediction into a natural language statement:
     - Model Type: {model_type}
@@ -72,14 +82,45 @@ async def call_chatgpt_api(prediction, model_type):
     Duration predictions should state the time in minutes or hours.
     Demand predictions should describe the approximate number of trips.
     """
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",  # Use gpt-4 or gpt-3.5-turbo
-        messages=[
-            {"role": "system", "content": "You are a Expert at predicting demand and duration prediction, where you process the predictions into natural language statements.."},
-            {"role": "user", "content": prompt},
+
+    payload = {
+        "model": "llama-3.1-sonar-small-128k-online",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a Expert at predicting demand and duration prediction, where you process the predictions into natural language statements..."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
         ],
-    )
-    return response["choices"][0]["message"]["content"].strip()
+        "temperature": 0.2,
+        "top_p": 0.9,
+        "search_domain_filter": ["perplexity.ai"],
+        "return_images": False,
+        "return_related_questions": False,
+        "search_recency_filter": "month",
+        "top_k": 0,
+        "stream": False,
+        "presence_penalty": 0,
+        "frequency_penalty": 1
+    }
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json"
+    }
+
+    # Make the API call
+    response = requests.post(url, json=payload, headers=headers)
+
+    if response.status_code == 200:
+        result = response.json()
+        return result.get("messages", [{}])[0].get("content", "").strip()
+    else:
+        raise HTTPException(status_code=500, detail=f"Perplexity API error: {response.text}")
+
 
 @app.on_event("startup")
 async def load_models():
@@ -117,8 +158,8 @@ async def predict(request: PredictionRequest):
         elif model_type == "duration":
             prediction = duration_model.predict(bert_features)[0]
 
-        # Convert prediction to natural language using ChatGPT
-        natural_language_response = await call_chatgpt_api(prediction, model_type)
+        # Convert prediction to natural language using Perplexity
+        natural_language_response = await call_perplexity_api(prediction, model_type)
 
         return {"prediction": natural_language_response}
 
