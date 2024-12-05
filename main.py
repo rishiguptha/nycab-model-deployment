@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
 from google.oauth2 import service_account  # Import Google service account module
+import openai  # Import OpenAI library for ChatGPT integration
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -17,6 +18,9 @@ demand_model = None
 duration_model = None
 tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
 bert_model = DistilBertModel.from_pretrained('distilbert-base-uncased')
+
+# Set OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")  # Set this environment variable
 
 # Define the structure of the request body
 class PredictionRequest(BaseModel):
@@ -56,6 +60,25 @@ def preprocess_with_bert(input_text):
         features = outputs.last_hidden_state[:, 0, :]  # Take the [CLS] token output
     return features.numpy()
 
+async def call_chatgpt_api(prediction, model_type):
+    """
+    Use ChatGPT to convert the prediction into a natural language statement.
+    """
+    prompt = f"""
+    Convert the following prediction into a natural language statement:
+    - Model Type: {model_type}
+    - Prediction: {prediction}
+
+    Duration predictions should state the time in minutes or hours.
+    Demand predictions should describe the approximate number of trips.
+    """
+    response = openai.Completion.create(
+        engine="text-davinci-003",
+        prompt=prompt,
+        max_tokens=100
+    )
+    return response["choices"][0]["text"].strip()
+
 @app.on_event("startup")
 async def load_models():
     """
@@ -88,11 +111,14 @@ async def predict(request: PredictionRequest):
 
         # Predict using the correct model
         if model_type == "demand":
-            prediction = demand_model.predict(bert_features)
+            prediction = demand_model.predict(bert_features)[0]
         elif model_type == "duration":
-            prediction = duration_model.predict(bert_features)
+            prediction = duration_model.predict(bert_features)[0]
 
-        return {"prediction": prediction.tolist()}
+        # Convert prediction to natural language using ChatGPT
+        natural_language_response = await call_chatgpt_api(prediction, model_type)
+
+        return {"prediction": natural_language_response}
 
     except Exception as e:
         print(f"Error occurred: {e}")
