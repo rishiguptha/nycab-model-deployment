@@ -19,7 +19,11 @@ def load_model_from_gcs(bucket_name: str, model_path: str):
     """
     Load a model file from Google Cloud Storage.
     """
-    client = storage.Client()
+    # Write the service account JSON from Render's environment variable
+    service_account_info = json.loads(os.environ["GOOGLE_APPLICATION_CREDENTIALS_JSON"])
+    credentials = service_account.Credentials.from_service_account_info(service_account_info)
+
+    client = storage.Client(credentials=credentials)
     bucket = client.get_bucket(bucket_name)
     blob = bucket.blob(model_path)
     local_model_path = f"/tmp/{model_path.split('/')[-1]}"
