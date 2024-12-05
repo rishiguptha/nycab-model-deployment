@@ -62,7 +62,7 @@ def preprocess_with_bert(input_text):
 
 async def call_chatgpt_api(prediction, model_type):
     """
-    Use ChatGPT to convert the prediction into a natural language statement.
+    Use ChatGPT (gpt-4 or gpt-3.5-turbo) to convert the prediction into a natural language statement.
     """
     prompt = f"""
     Convert the following prediction into a natural language statement:
@@ -72,12 +72,14 @@ async def call_chatgpt_api(prediction, model_type):
     Duration predictions should state the time in minutes or hours.
     Demand predictions should describe the approximate number of trips.
     """
-    response = openai.Completion.create(
-        engine="text-davinci-003",
-        prompt=prompt,
-        max_tokens=100
+    response = openai.ChatCompletion.create(
+        model="gpt-4",  # Use gpt-4 or gpt-3.5-turbo
+        messages=[
+            {"role": "system", "content": "You are a Expert at predicting demand and duration prediction, where you process the predictions into natural language statements.."},
+            {"role": "user", "content": prompt},
+        ],
     )
-    return response["choices"][0]["text"].strip()
+    return response["choices"][0]["message"]["content"].strip()
 
 @app.on_event("startup")
 async def load_models():
