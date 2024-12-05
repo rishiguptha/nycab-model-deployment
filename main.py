@@ -2,13 +2,14 @@ import os
 import json
 import joblib
 import numpy as np
-import torch
-from transformers import DistilBertTokenizer, DistilBertModel
+import torch  # Import torch for working with BERT
+from transformers import DistilBertTokenizer, DistilBertModel  # Import BERT components
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from google.cloud import storage
-from google.oauth2 import service_account  # Import the service account module
+from google.oauth2 import service_account  # Import Google service account module
 
+# Initialize FastAPI app
 app = FastAPI()
 
 # Global variables to hold the models and BERT components
