@@ -67,8 +67,11 @@ async def call_perplexity_api(prediction, model_type):
     """
     Use Perplexity API to convert the prediction into a natural language statement.
     """
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+
     url = "https://api.perplexity.ai/chat/completions"
-    token = os.getenv("PERPLEXITY_API_KEY")  # Store your API token in an environment variable
+    token = os.getenv("PERPLEXITY_API_KEY")  # Ensure this environment variable is set
 
     if not token:
         raise HTTPException(status_code=500, detail="Perplexity API token is not set.")
@@ -88,7 +91,7 @@ async def call_perplexity_api(prediction, model_type):
         "messages": [
             {
                 "role": "system",
-                "content": "You are a Expert at predicting demand and duration prediction, where you process the predictions into natural language statements..."
+                "content": "Be precise and concise."
             },
             {
                 "role": "user",
@@ -115,12 +118,14 @@ async def call_perplexity_api(prediction, model_type):
     # Make the API call
     response = requests.post(url, json=payload, headers=headers)
 
+    # Debugging the API response
+    logging.debug(f"Perplexity API response: {response.status_code} - {response.text}")
+
     if response.status_code == 200:
         result = response.json()
         return result.get("messages", [{}])[0].get("content", "").strip()
     else:
         raise HTTPException(status_code=500, detail=f"Perplexity API error: {response.text}")
-
 
 @app.on_event("startup")
 async def load_models():
@@ -137,6 +142,9 @@ async def predict(request: PredictionRequest):
     """
     Endpoint to handle prediction requests.
     """
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+
     try:
         model_type = request.model
         raw_features = request.features
@@ -158,11 +166,15 @@ async def predict(request: PredictionRequest):
         elif model_type == "duration":
             prediction = duration_model.predict(bert_features)[0]
 
+        logging.debug(f"Raw Prediction: {prediction}")
+
         # Convert prediction to natural language using Perplexity
         natural_language_response = await call_perplexity_api(prediction, model_type)
+
+        logging.debug(f"Natural Language Response: {natural_language_response}")
 
         return {"prediction": natural_language_response}
 
     except Exception as e:
-        print(f"Error occurred: {e}")
+        logging.error(f"Error occurred: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
