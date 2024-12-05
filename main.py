@@ -47,18 +47,55 @@ async def load_models():
     duration_model = load_model_from_gcs(bucket_name, "models/lgb_regressor_duration.pkl")
 
 @app.post("/predict")
+from transformers import DistilBertTokenizer, DistilBertModel
+import torch
+
+# Initialize the BERT tokenizer and model (must match what you used during training)
+tokenizer = DistilBertTokenizer.from_pretrained('distilbert-base-uncased')
+bert_model = DistilBertModel.from_pretrained('distilbert-base-uncased')
+
+def preprocess_with_bert(input_text):
+    """
+    Preprocess input text with BERT to generate features.
+    """
+    # Tokenize and encode the input text
+    inputs = tokenizer(input_text, return_tensors="pt", max_length=32, padding="max_length", truncation=True)
+    input_ids = inputs["input_ids"]
+    attention_mask = inputs["attention_mask"]
+
+    # Generate BERT embeddings
+    with torch.no_grad():
+        outputs = bert_model(input_ids, attention_mask=attention_mask)
+        features = outputs.last_hidden_state[:, 0, :]  # Take the [CLS] token output
+    return features.numpy()
+
 async def predict(request: PredictionRequest):
     """
     Endpoint to handle prediction requests.
     """
-    model_type = request.model
-    features = np.array(request.features).reshape(1, -1)
+    try:
+        model_type = request.model
+        raw_features = request.features
 
-    if model_type == "demand":
-        prediction = demand_model.predict(features)
-    elif model_type == "duration":
-        prediction = duration_model.predict(features)
-    else:
-        raise HTTPException(status_code=400, detail="Invalid model type. Use 'demand' or 'duration'.")
+        # Generate input text for BERT preprocessing
+        if model_type == "demand":
+            input_text = f"Location: {raw_features[0]}, {raw_features[1]}. Hour: {raw_features[2]}. Weekday: {raw_features[3]}."
+        elif model_type == "duration":
+            input_text = f"Trip Distance: {raw_features[0]} miles. Hour: {raw_features[1]}. Weekday: {raw_features[2]}. Passengers: {raw_features[3]}."
+        else:
+            raise HTTPException(status_code=400, detail="Invalid model type. Use 'demand' or 'duration'.")
 
-    return {"prediction": prediction.tolist()}
+        # Preprocess input with BERT
+        bert_features = preprocess_with_bert(input_text)
+
+        # Predict using the correct model
+        if model_type == "demand":
+            prediction = demand_model.predict(bert_features)
+        elif model_type == "duration":
+            prediction = duration_model.predict(bert_features)
+
+        return {"prediction": prediction.tolist()}
+
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
