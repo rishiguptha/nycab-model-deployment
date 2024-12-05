@@ -73,7 +73,7 @@ async def call_chatgpt_api(prediction, model_type):
     Demand predictions should describe the approximate number of trips.
     """
     response = openai.ChatCompletion.create(
-        model="gpt-4",  # Use gpt-4 or gpt-3.5-turbo
+        model="gpt-3.5-turbo",  # Use gpt-4 or gpt-3.5-turbo
         messages=[
             {"role": "system", "content": "You are a Expert at predicting demand and duration prediction, where you process the predictions into natural language statements.."},
             {"role": "user", "content": prompt},
