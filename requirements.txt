@@ -8,3 +8,4 @@ pydantic
 scikit-learn
 joblib
 lightgbm
+openai
