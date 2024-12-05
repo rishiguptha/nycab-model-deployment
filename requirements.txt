@@ -1,7 +1,9 @@
 fastapi
 uvicorn
+torch
+transformers
 google-cloud-storage
-numpy
+google-auth
+pydantic
 scikit-learn
 joblib
-lightgbm
